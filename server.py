@@ -1,0 +1,78 @@
+"""
+UsTalk WebSocket Server — deployable on Render, local PC, or any cloud.
+
+Usage (local):
+    pip install websockets
+    python server.py
+
+Usage (Render.com):
+    1. Create a new Web Service, connect this repo
+    2. Start command: python server.py
+    3. Deploy — URL will be https://your-app.onrender.com
+    4. In the app, use: wss://your-app.onrender.com
+"""
+
+import asyncio
+import json
+import os
+import websockets
+
+connected_users = {}
+
+
+async def handle(ws):
+    username = None
+    try:
+        async for raw in ws:
+            data = json.loads(raw)
+            msg_type = data.get("type")
+
+            if msg_type == "join":
+                username = data.get("username", "Anonymous")
+                connected_users[username] = ws
+                print(f"[+] {username} joined ({len(connected_users)} online)")
+                await broadcast({"type": "system", "text": f"{username} joined the chat", "username": "System"})
+
+            elif msg_type == "message":
+                sender = data.get("sender", username or "Unknown")
+                text = data.get("text", "")
+                print(f"[<] {sender}: {text}")
+                await broadcast({
+                    "type": "message",
+                    "username": sender,
+                    "text": text,
+                    "timestamp": __import__("datetime").datetime.now().strftime("%H:%M")
+                })
+
+    except websockets.exceptions.ConnectionClosed:
+        pass
+    finally:
+        if username and username in connected_users:
+            del connected_users[username]
+            print(f"[-] {username} left ({len(connected_users)} online)")
+            await broadcast({"type": "system", "text": f"{username} left the chat", "username": "System"})
+
+
+async def broadcast(msg):
+    msg_str = json.dumps(msg)
+    dead = []
+    for name, ws in connected_users.items():
+        try:
+            await ws.send(msg_str)
+        except:
+            dead.append(name)
+    for name in dead:
+        connected_users.pop(name, None)
+
+
+async def main():
+    port = int(os.environ.get("PORT", 8080))
+    print(" UsTalk WebSocket Server")
+    print(f" Listening on ws://0.0.0.0:{port}")
+    print(f" Share: ws://<your-ip>:{port}  or  wss://<your-domain>")
+    print()
+    async with websockets.serve(handle, "0.0.0.0", port):
+        await asyncio.Future()
+
+if __name__ == "__main__":
+    asyncio.run(main())
