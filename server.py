@@ -65,7 +65,14 @@ async def main():
     print(f" Listening on ws://0.0.0.0:{port}")
     print(f" Share: ws://<your-ip>:{port}  or  wss://<your-domain>")
     print()
-    async with websockets.serve(handle, "0.0.0.0", port):
+    async with websockets.serve(
+        handle,
+        "0.0.0.0",
+        port,
+        max_size=5 * 1024 * 1024,
+        ping_interval=20,
+        ping_timeout=60,
+    ):
         await asyncio.Future()
 
 if __name__ == "__main__":
