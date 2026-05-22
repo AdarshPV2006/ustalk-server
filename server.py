@@ -1,23 +1,12 @@
-"""
-UsTalk WebSocket Server — deployable on Render, local PC, or any cloud.
-
-Usage (local):
-    pip install websockets
-    python server.py
-
-Usage (Render.com):
-    1. Create a new Web Service, connect this repo
-    2. Start command: python server.py
-    3. Deploy — URL will be https://your-app.onrender.com
-    4. In the app, use: wss://your-app.onrender.com
-"""
-
 import asyncio
 import json
 import os
 import websockets
+from datetime import datetime
 
 connected_users = {}
+message_history = []
+MAX_HISTORY = 100
 
 
 async def handle(ws):
@@ -31,18 +20,22 @@ async def handle(ws):
                 username = data.get("username", "Anonymous")
                 connected_users[username] = ws
                 print(f"[+] {username} joined ({len(connected_users)} online)")
+
+                if message_history:
+                    await ws.send(json.dumps({"type": "history", "messages": message_history}))
+
                 await broadcast({"type": "system", "text": f"{username} joined the chat", "username": "System"})
 
             elif msg_type == "message":
                 sender = data.get("sender", username or "Unknown")
                 text = data.get("text", "")
+                ts = datetime.now().strftime("%H:%M")
                 print(f"[<] {sender}: {text}")
-                await broadcast({
-                    "type": "message",
-                    "username": sender,
-                    "text": text,
-                    "timestamp": __import__("datetime").datetime.now().strftime("%H:%M")
-                })
+                msg = {"type": "message", "username": sender, "text": text, "timestamp": ts}
+                message_history.append(msg)
+                if len(message_history) > MAX_HISTORY:
+                    message_history.pop(0)
+                await broadcast(msg)
 
     except websockets.exceptions.ConnectionClosed:
         pass
