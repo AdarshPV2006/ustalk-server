@@ -26,16 +26,17 @@ async def handle(ws):
 
                 await broadcast({"type": "system", "text": f"{username} joined the chat", "username": "System"})
 
-            elif msg_type == "message":
+            elif msg_type in ("message", "image", "voice"):
                 sender = data.get("sender", username or "Unknown")
                 text = data.get("text", "")
                 ts = datetime.now().strftime("%H:%M")
-                print(f"[<] {sender}: {text}")
-                msg = {"type": "message", "username": sender, "text": text, "timestamp": ts}
-                message_history.append(msg)
+                print(f"[<] {sender} [{msg_type}]: {text or '<media>'}")
+                data["username"] = sender
+                data["timestamp"] = ts
+                message_history.append(data)
                 if len(message_history) > MAX_HISTORY:
                     message_history.pop(0)
-                await broadcast(msg)
+                await broadcast(data)
 
     except websockets.exceptions.ConnectionClosed:
         pass
